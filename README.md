@@ -74,6 +74,7 @@ CONFIG_INPUT_TPS43=y
         single-tap;
         press-and-hold;
         swipes;
+        // three-finger-swipe;                    /* 3-finger swipe only, without enabling 1-finger swipe (optional) */
         zoom;
 
         switch-xy;

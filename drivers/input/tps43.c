@@ -17,14 +17,14 @@
 #include "tps43.h"
 
 LOG_MODULE_REGISTER(tps43, CONFIG_INPUT_LOG_LEVEL);
- 
+
 /**
  * @brief Ends communication window with trackpad
- * 
+ *
  * After each read of trackpad registers, it is necessary to end the communication window
  * by writing the special address 0xEEEE, which causes a NACK from the device.
  * This is a mandatory step according to the IQS5xx protocol.
- * 
+ *
  * @param dev Pointer to trackpad device
  */
 static void tps43_end_communication_window(const struct device *dev) {
@@ -41,11 +41,11 @@ static void tps43_end_communication_window(const struct device *dev) {
 
 /**
  * @brief Reads a sequence of trackpad registers
- * 
+ *
  * Performs reading of multiple bytes from sequential trackpad registers,
  * starting from the specified address. Used for reading related registers,
  * such as gesture events (GESTURE_EVENTS_0 and GESTURE_EVENTS_1).
- * 
+ *
  * @param dev Pointer to trackpad device
  * @param reg Starting register address (16-bit)
  * @param val Pointer to buffer for data
@@ -63,10 +63,10 @@ static int read_sequence_registers(const struct device *dev, uint16_t reg, void 
 
 /**
  * @brief Reads a 16-bit trackpad register via I2C
- * 
+ *
  * Performs reading of a 16-bit value from the specified trackpad register.
  * Data is interpreted as big-endian (MSB first).
- * 
+ *
  * @param dev Pointer to trackpad device
  * @param reg Register address (16-bit)
  * @param val Pointer to variable to store the read value
@@ -81,14 +81,14 @@ static int tps43_i2c_read_reg16(const struct device *dev, uint16_t reg, uint16_t
     // LSB: bitwise AND with mask - mask leaves only lower byte (0x2F00 -> 0x00)
     uint8_t reg_buf[2] = {reg >> 8, reg & 0xFF};
     int ret;
-    
+
     // writes register address (reg_buf) and reads 2 bytes of data (into buffer buf)
     ret = i2c_write_read_dt(&config->i2c_bus, reg_buf, sizeof(reg_buf), buf, sizeof(buf));
     if (ret < 0) {
         LOG_ERR("Register 0x%04x read error: %d", reg, ret);
         return ret;
     }
-    
+
     // converts big-endian data (MSB first) back to 16-bit value
     *val = (buf[0] << 8) | buf[1];
     return 0;
@@ -96,10 +96,10 @@ static int tps43_i2c_read_reg16(const struct device *dev, uint16_t reg, uint16_t
 
 /**
  * @brief Writes a 16-bit value to trackpad register via I2C
- * 
+ *
  * Performs writing of a 16-bit value to the specified trackpad register.
  * Data is transmitted as big-endian (MSB first).
- * 
+ *
  * @param dev Pointer to trackpad device
  * @param reg Register address (16-bit)
  * @param val Value to write (16-bit)
@@ -112,22 +112,22 @@ static __maybe_unused int tps43_i2c_write_reg16(const struct device *dev, uint16
     // forms 4-byte register address: (MSB, LSB, MSB_VALUE, LSB_VALUE)
     uint8_t buf[4] = {reg >> 8, reg & 0xFF, val >> 8, val & 0xFF};
     int ret;
-    
+
     ret = i2c_write_dt(&config->i2c_bus, buf, sizeof(buf));
     if (ret < 0) {
         LOG_ERR("Register 0x%04x write error: %d", reg, ret);
         return ret;
     }
-    
+
     return 0;
 }
 
 /**
  * @brief Reads an 8-bit trackpad register via I2C
- * 
+ *
  * Performs reading of an 8-bit value from the specified trackpad register.
  * Used for reading most configuration and status registers.
- * 
+ *
  * @param dev Pointer to trackpad device
  * @param reg Register address (16-bit)
  * @param val Pointer to variable to store the read value
@@ -140,7 +140,7 @@ static int tps43_i2c_read_reg8_w_err(const struct device *dev, uint16_t reg, uin
     // forms 2-byte register address: (MSB, LSB)
     uint8_t reg_buf[2] = {reg >> 8, reg & 0xFF};
     int ret;
-    
+
     ret = i2c_write_read_dt(&config->i2c_bus, reg_buf, sizeof(reg_buf), val, 1);
     if (ret != 0) {
         if (!with_err) {
@@ -160,10 +160,10 @@ static inline int tps43_i2c_read_reg8(const struct device *dev, uint16_t reg, ui
 
 /**
  * @brief Writes an 8-bit value to trackpad register via I2C
- * 
+ *
  * Performs writing of an 8-bit value to the specified trackpad register.
  * Used for writing configuration and control registers.
- * 
+ *
  * @param dev Pointer to trackpad device
  * @param reg Register address (16-bit)
  * @param val Value to write (8-bit)
@@ -174,33 +174,33 @@ static int tps43_i2c_write_reg8(const struct device *dev, uint16_t reg, uint8_t 
     const struct tps43_config *config = dev->config;
     uint8_t buf[3] = {reg >> 8, reg & 0xFF, val};
     int ret;
-    
+
     ret = i2c_write_dt(&config->i2c_bus, buf, sizeof(buf));
     if (ret < 0) {
         LOG_ERR("Register 0x%04x write error: %d", reg, ret);
         return ret;
     }
-    
+
     return 0;
 }
 
 /**
  * @brief Callback handler for RDY pin interrupt from trackpad
- * 
+ *
  * Called when the RDY (Ready) pin state of the trackpad changes,
  * signaling that new data is available for reading.
  * Schedules execution of work handler to read the data.
- * 
+ *
  * @param dev Pointer to trackpad device
  * @param cb Pointer to GPIO callback structure
  * @param pins Mask of pins that triggered the interrupt
  */
  static void tps43_rdy_callback(const struct device *dev, struct gpio_callback *cb, uint32_t pins) {
      struct tps43_drv_data *drv_data = CONTAINER_OF(cb, struct tps43_drv_data, rdy_cb);
- 
+
      k_work_submit(&drv_data->work);
  }
- 
+
 
 /** Dump charging state */
 static void tps43_dump_status(const struct device *dev) {
@@ -219,11 +219,11 @@ static void tps43_force_communication(const struct device *dev) {
 
 /**
  * @brief Internal function to put trackpad into suspend/resume mode
- * 
+ *
  * Controls the SYSTEM_CONTROL_1 register (0x0432), setting or clearing the SUSPEND bit.
  * In suspend mode, the trackpad enters a low power consumption state and does not process
  * touches until wake-up.
- * 
+ *
  * @param dev Pointer to trackpad device
  * @param suspend true - enter suspend, false - exit suspend
  * @param lock_held true if semaphore is already held (for internal use)
@@ -257,13 +257,13 @@ static int tps43_set_suspend_internal(const struct device *dev, bool suspend, bo
     }
 
     uint8_t control_reg = 0;
-    
+
     // When exiting suspend, first transaction will return NACK (section 7.3.1)
     if (drv_data->suspended && !suspend) {
         tps43_force_communication(dev);
         k_sleep(K_MSEC(1)); // need at least 200uS before 2nd read
         LOG_INF("I2C Wake: device awakened from suspend");
-        
+
         // After wake-up, read register again
         ret = tps43_i2c_read_reg8(dev, TPS43_REG_SYSTEM_CONTROL_1, &control_reg);
 
@@ -271,7 +271,7 @@ static int tps43_set_suspend_internal(const struct device *dev, bool suspend, bo
         tps43_force_communication(dev);
         tps43_dump_status(dev); // for debugging power management behavior
 
-        // Read current value 
+        // Read current value
         ret = tps43_i2c_read_reg8(dev, TPS43_REG_SYSTEM_CONTROL_1, &control_reg);
     }
 
@@ -313,24 +313,44 @@ done:
 }
 
 /** Common swipe handling for 1 and 3 finger variants */
-static void tps43_handle_swipe(const struct device *dev, int16_t rel_x, int16_t rel_y) {
+static void tps43_handle_swipe(const struct device *dev, uint8_t num_fingers, int16_t rel_x, int16_t rel_y) {
+    const struct tps43_config *config = dev->config;
+
+    bool enabled = false;
+
+    if (num_fingers == 3) {
+        if (config->swipes || config->three_finger_swipe) {
+            enabled = true;
+        }
+    }
+
+    if (num_fingers == 1) {
+        if (config->swipes) {
+            enabled = true;
+        }
+    }
+
+    if (!enabled) {
+        return;
+    }
+
     if (rel_x < 0) {
-        LOG_INF("swipe left - INPUT_BTN_WEST");
+        LOG_INF("%d-finger swipe left - INPUT_BTN_WEST", num_fingers);
         input_report_key(dev, INPUT_BTN_WEST, 1, true, K_FOREVER);
         input_report_key(dev, INPUT_BTN_WEST, 0, true, K_FOREVER);
     }
     if (rel_x > 0) {
-        LOG_INF("swipe right - INPUT_BTN_EAST");
+        LOG_INF("%d-finger swipe right - INPUT_BTN_EAST", num_fingers);
         input_report_key(dev, INPUT_BTN_EAST, 1, true, K_FOREVER);
         input_report_key(dev, INPUT_BTN_EAST, 0, true, K_FOREVER);
     }
     if (rel_y < 0) {
-        LOG_INF("swipe up - INPUT_BTN_NORTH");
+        LOG_INF("%d-finger swipe up - INPUT_BTN_NORTH", num_fingers);
         input_report_key(dev, INPUT_BTN_NORTH, 1, true, K_FOREVER);
         input_report_key(dev, INPUT_BTN_NORTH, 0, true, K_FOREVER);
     }
     if (rel_y > 0) {
-        LOG_INF("swipe down - INPUT_BTN_SOUTH");
+        LOG_INF("%d-finger swipe down - INPUT_BTN_SOUTH", num_fingers);
         input_report_key(dev, INPUT_BTN_SOUTH, 1, true, K_FOREVER);
         input_report_key(dev, INPUT_BTN_SOUTH, 0, true, K_FOREVER);
     }
@@ -338,15 +358,15 @@ static void tps43_handle_swipe(const struct device *dev, int16_t rel_x, int16_t 
 
 /**
  * @brief Main work handler for processing trackpad events
- * 
+ *
  * Executed when receiving an interrupt from the trackpad (RDY pin).
  * Reads and processes gesture events, cursor movement and scrolling,
  * converting them into input events for the ZMK system.
  * Also manages trackpad wake-up from suspend mode when activity is detected.
- * 
+ *
  * Protected by semaphore to prevent interruption by other I2C operations,
  * which ensures smooth cursor movement without interruptions.
- * 
+ *
  * @param work Pointer to work structure
  */
 static void tps43_work_handler(struct k_work *work) {
@@ -357,13 +377,13 @@ static void tps43_work_handler(struct k_work *work) {
     bool is_zoom_active = false;
     bool is_drag_active = drv_data->drag_active;
     int ret;
-    
+
     // If device is in suspend, ignore interrupt (RDY should be disabled)
     if (drv_data->suspended) {
         LOG_WRN("RDY interrupt in suspend mode - ignoring");
         return;
     }
-    
+
     // Acquire semaphore to protect all I2C operations from interruption
     // This prevents conflicts during simultaneous trackpad access
     k_sem_take(&drv_data->lock, K_FOREVER);
@@ -407,22 +427,22 @@ static void tps43_work_handler(struct k_work *work) {
         if (gestures_events[0] & TPS43_SINGLE_TAP) {
             LOG_INF("Single tap → LEFT BUTTON");
             input_report_key(dev, INPUT_BTN_0, 1, true, K_FOREVER);
-            input_report_key(dev, INPUT_BTN_0, 0, true, K_FOREVER);  
+            input_report_key(dev, INPUT_BTN_0, 0, true, K_FOREVER);
         }
         if (gestures_events[0] & (TPS43_SWIPE_UP | TPS43_SWIPE_DOWN | TPS43_SWIPE_LEFT | TPS43_SWIPE_RIGHT)) {
             LOG_INF("Single finger swipe");
-            tps43_handle_swipe(dev, rel_x, rel_y);
+            tps43_handle_swipe(dev, num_fingers, rel_x, rel_y);
         }
         if (gestures_events[1] & TPS43_TWO_FINGER_TAP) {
             LOG_INF("Two finger tap → RIGHT BUTTON");
-            input_report_key(dev, INPUT_BTN_1, 1, true, K_FOREVER);  
-            input_report_key(dev, INPUT_BTN_1, 0, true, K_FOREVER); 
+            input_report_key(dev, INPUT_BTN_1, 1, true, K_FOREVER);
+            input_report_key(dev, INPUT_BTN_1, 0, true, K_FOREVER);
         }
         if ((gestures_events[0] & TPS43_PRESS_AND_HOLD) && (!(is_drag_active))) {
             LOG_INF("Press and hold detected - DRAG (HOLD LEFT BUTTON)");
             // set internal drag flag and press left mouse button
             is_drag_active = true;
-            input_report_key(dev, INPUT_BTN_0, 1, true, K_FOREVER); 
+            input_report_key(dev, INPUT_BTN_0, 1, true, K_FOREVER);
         }
         if (gestures_events[1] & TPS43_SCROLL) {
             // set scroll flag for processing in tp_movement block
@@ -445,9 +465,7 @@ static void tps43_work_handler(struct k_work *work) {
     if (rel_x != 0 || rel_y != 0) {
         if (num_fingers == 3) {
             LOG_INF("Three-finger movement - checking for swipe");
-            if (config->swipes) {
-                tps43_handle_swipe(dev, rel_x, rel_y);
-            }
+            tps43_handle_swipe(dev, num_fingers, rel_x, rel_y);
         } else if (is_scroll_active) {
             // Scroll processing: keep only dominant axis
             if (abs(rel_x) > abs(rel_y)) {
@@ -480,7 +498,7 @@ static void tps43_work_handler(struct k_work *work) {
                 int32_t scaled_x = ((int32_t)rel_x * config->sensitivity) / 100;
                 rel_x = (int16_t)CLAMP(scaled_x, INT16_MIN, INT16_MAX);
             }
-            if (rel_y != 0) { 
+            if (rel_y != 0) {
                 int32_t scaled_y = ((int32_t)rel_y * config->sensitivity) / 100;
                 rel_y = (int16_t)CLAMP(scaled_y, INT16_MIN, INT16_MAX);
             }
@@ -495,17 +513,17 @@ done:
     // Save for next call
     drv_data->drag_active = is_drag_active;
     tps43_end_communication_window(dev);
-    
+
     // Release semaphore after completing all I2C operations
     k_sem_give(&drv_data->lock);
 }
 
 /**
  * @brief Resets driver internal state values
- * 
+ *
  * Initializes all driver state flags to initial values.
  * Used during initialization and device reset.
- * 
+ *
  * @param dev Pointer to trackpad device
  * @return 0 on success
  */
@@ -522,11 +540,11 @@ static int tps43_reset_values(const struct device *dev) {
 
 /**
  * @brief Configures trackpad system registers for operation
- * 
+ *
  * Sets up trackpad registers to track touch events, gestures and movement.
  * Enables necessary gestures (single tap, press and hold, scroll, two finger tap),
  * configures axis inversion and sets setup complete flag.
- * 
+ *
  * @param dev Pointer to trackpad device
  * @return 0 on success, negative error code on failure
  */
@@ -535,18 +553,18 @@ static int tps43_configure_device(const struct device *dev) {
     const struct tps43_config *config = dev->config;
     int ret;
 
-    // write to TPS43_REG_SYSTEM_CONFIG_1 events to track  
+    // write to TPS43_REG_SYSTEM_CONFIG_1 events to track
     uint8_t events_to_track = TPS43_TP_EVENT | TPS43_EVENT_MODE;
-    
+
     // Gestures (single_tap, press_and_hold, scroll, two_finger_tap)
-    if (config->single_tap || config->press_and_hold || 
+    if (config->single_tap || config->press_and_hold ||
         config->scroll || config->two_finger_tap) {
         events_to_track |= TPS43_GESTURE_EVENT;
     }
-    
+
     // Touch events for absolute coordinates
     events_to_track |= TPS43_TOUCH_EVENT;
-    
+
     ret = tps43_i2c_write_reg8(dev, TPS43_REG_SYSTEM_CONFIG_1, events_to_track);
     if (ret != 0) {
         LOG_WRN("Events to track write error: %d", ret);
@@ -566,7 +584,7 @@ static int tps43_configure_device(const struct device *dev) {
     }
 
     // enable single gestures at hardware level
-    if (config->single_tap || config->press_and_hold || config->swipes) {
+    if (config->single_tap || config->press_and_hold || config->swipes || config->three_finger_swipe) {
         uint8_t single_gestures = 0;
         single_gestures |= config->single_tap ? TPS43_SINGLE_TAP : 0;
         single_gestures |= config->press_and_hold ? TPS43_PRESS_AND_HOLD : 0;
@@ -574,7 +592,7 @@ static int tps43_configure_device(const struct device *dev) {
         single_gestures |= config->swipes ? TPS43_SWIPE_DOWN : 0;
         single_gestures |= config->swipes ? TPS43_SWIPE_LEFT : 0;
         single_gestures |= config->swipes ? TPS43_SWIPE_RIGHT : 0;
-        
+
         ret = tps43_i2c_write_reg8(dev, TPS43_REG_SINGLE_FINGER_GESTURES, single_gestures);
         if (ret != 0) {
             LOG_WRN("Single gestures configuration error: %d", ret);
@@ -589,7 +607,7 @@ static int tps43_configure_device(const struct device *dev) {
         multi_gestures |= config->two_finger_tap ? TPS43_TWO_FINGER_TAP : 0;
         multi_gestures |= config->scroll ? TPS43_SCROLL : 0;
         multi_gestures |= config->zoom ? TPS43_ZOOM : 0;
-        
+
         ret = tps43_i2c_write_reg8(dev, TPS43_REG_MULTI_FINGER_GESTURES, multi_gestures);
         if (ret != 0) {
             LOG_WRN("Multi-gesture configuration error: %d", ret);
@@ -959,11 +977,11 @@ static int tps43_configure_device(const struct device *dev) {
 
 /**
  * @brief Checks device reset state and performs reconfiguration
- * 
+ *
  * Waits for device readiness after reset, checks SHOW_RESET flag
  * and sends reset acknowledgment (ACK_RESET) when necessary.
  * Then performs full device configuration.
- * 
+ *
  * @param dev Pointer to trackpad device
  * @return 0 on success, negative error code on failure
  */
@@ -986,7 +1004,7 @@ static int check_reset_and_reconfigure(const struct device *dev) {
             }
         }
     } while (ret < 0);
-    
+
     LOG_INF("Device ready after %d ms", wait_count * 100);
 
     // after reset, set flag to acknowledge that reset was performed
@@ -1007,13 +1025,13 @@ static int check_reset_and_reconfigure(const struct device *dev) {
     }
 
     drv_data->device_ready = true;
-    
+
     return 0;
 }
 
 /**
  * @brief Public function to put trackpad into suspend/resume
- * 
+ *
  * @param dev Pointer to trackpad device
  * @param suspend true - enter suspend, false - exit suspend
  * @return 0 on success, negative error code on failure
@@ -1303,12 +1321,12 @@ static void tps43_dump_registers(const struct device *dev) {
 
 /**
  * @brief Initializes TPS43 trackpad driver
- * 
+ *
  * Performs full driver initialization: checks I2C bus availability,
  * performs hardware reset via GPIO RST (if connected), waits for device
  * readiness, configures trackpad registers and sets up GPIO RDY interrupts.
  * Also initializes power management system when necessary.
- * 
+ *
  * @param dev Pointer to trackpad device
  * @return 0 on success, negative error code on failure
  */
@@ -1321,13 +1339,13 @@ static int tps43_init(const struct device *dev) {
     drv_data->dev = dev;
 
     LOG_INF("=== Azoteq tps43 driver for device %s ===", dev->name);
-    
+
     // Check I2C bus
     if (!device_is_ready(config->i2c_bus.bus)) {
         LOG_ERR("I2C bus not available");
         return -ENODEV;
     }
-    
+
     LOG_INF("I2C bus: %s", config->i2c_bus.bus->name);
     LOG_INF("I2C address: 0x%02x", config->i2c_bus.addr);
 
@@ -1344,12 +1362,12 @@ static int tps43_init(const struct device *dev) {
             LOG_ERR("RST GPIO configuration error: %d", ret);
             return ret;
         }
-        
+
         gpio_pin_set_dt(&config->rst_gpio, 0);
         k_sleep(K_MSEC(10));
         gpio_pin_set_dt(&config->rst_gpio, 1);
         k_sleep(K_MSEC(610));
-        
+
         LOG_INF("Hardware reset completed");
     }
 
@@ -1366,10 +1384,10 @@ static int tps43_init(const struct device *dev) {
         if (ret != 0) {
             LOG_WRN("RDY GPIO configuration error: %d", ret);
         } else {
-            ret = gpio_pin_interrupt_configure_dt(&config->rdy_gpio, 
+            ret = gpio_pin_interrupt_configure_dt(&config->rdy_gpio,
                                                     GPIO_INT_EDGE_TO_ACTIVE);
             if (ret == 0) {
-                gpio_init_callback(&drv_data->rdy_cb, tps43_rdy_callback, 
+                gpio_init_callback(&drv_data->rdy_cb, tps43_rdy_callback,
                                     BIT(config->rdy_gpio.pin));
                 ret = gpio_add_callback(config->rdy_gpio.port, &drv_data->rdy_cb);
                 if (ret == 0) {
@@ -1392,12 +1410,12 @@ static int tps43_init(const struct device *dev) {
     k_work_init(&drv_data->work, tps43_work_handler);
 
     tps43_dump_registers(dev);
-    
+
     LOG_INF("TPS43 driver successfully initialized");
     return 0;
 }
 
- 
+
 #define TPS43_INIT(inst)                                                                             \
     static struct tps43_drv_data tps43_##inst##_drvdata = {                                          \
         .device_ready = false,                                                                       \
@@ -1416,6 +1434,7 @@ static int tps43_init(const struct device *dev) {
         .scroll = DT_INST_PROP(inst, scroll),                                                        \
         .zoom = DT_INST_PROP(inst, zoom),                                                            \
         .swipes = DT_INST_PROP(inst, swipes),                                                        \
+        .three_finger_swipe = DT_INST_PROP(inst, three_finger_swipe),                                \
         .invert_x = DT_INST_PROP(inst, invert_x),                                                    \
         .invert_y = DT_INST_PROP(inst, invert_y),                                                    \
         .switch_xy = DT_INST_PROP(inst, switch_xy),                                                  \
@@ -1471,10 +1490,10 @@ DT_INST_FOREACH_STATUS_OKAY(TPS43_INIT)
 
 /**
  * @brief Public function to manage trackpad sleep mode
- * 
+ *
  * This function is used by ZMK power management system (via tps43_idle_sleeper)
  * to put trackpad into sleep mode when keyboard transitions to idle/sleep state.
- * 
+ *
  * @param dev Pointer to trackpad device
  * @param sleep true - enter sleep mode, false - wake up
  * @return 0 on success, negative error code on failure

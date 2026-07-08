@@ -207,7 +207,8 @@ struct tps43_config {
     bool two_finger_tap;
     bool scroll;
     bool zoom;
-    bool swipes;            
+    bool swipes;
+    bool three_finger_swipe;
     bool invert_x;
     bool invert_y;
     bool switch_xy;
