@@ -209,6 +209,7 @@ struct tps43_config {
     bool zoom;
     bool swipes;
     bool three_finger_swipe;
+    int16_t three_finger_swipe_throttle_ms;
     bool invert_x;
     bool invert_y;
     bool switch_xy;
@@ -268,8 +269,9 @@ struct tps43_drv_data {
     bool device_ready;
     bool initialized;
     bool drag_active;
-    bool suspended;         
-    bool touching;          
+    bool suspended;
+    bool touching;
+    int64_t last_three_finger_swipe_ms;
 };
 
 int tps43_set_sleep(const struct device *dev, bool sleep);

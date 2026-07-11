@@ -75,6 +75,7 @@ CONFIG_INPUT_TPS43=y
         press-and-hold;
         swipes;
         // three-finger-swipe;                    /* 3-finger swipe only, without enabling 1-finger swipe (optional) */
+        // three-finger-swipe-throttle-ms=<300>;  /* Min ms between 3-finger swipe actuations, 0 disables (optional, default 300) */
         zoom;
 
         switch-xy;

@@ -315,6 +315,7 @@ done:
 /** Common swipe handling for 1 and 3 finger variants */
 static void tps43_handle_swipe(const struct device *dev, uint8_t num_fingers, int16_t rel_x, int16_t rel_y) {
     const struct tps43_config *config = dev->config;
+    struct tps43_drv_data *drv_data = dev->data;
 
     bool enabled = false;
 
@@ -332,6 +333,17 @@ static void tps43_handle_swipe(const struct device *dev, uint8_t num_fingers, in
 
     if (!enabled) {
         return;
+    }
+
+    // Three-finger swipe is derived from raw movement deltas on every report while
+    // 3 fingers are down, rather than a single hardware-gated gesture event like the
+    // 1-finger swipe. Throttle it so one continuous swipe motion doesn't fire repeatedly.
+    if (num_fingers == 3 && config->three_finger_swipe_throttle_ms > 0) {
+        int64_t now = k_uptime_get();
+        if ((now - drv_data->last_three_finger_swipe_ms) < config->three_finger_swipe_throttle_ms) {
+            return;
+        }
+        drv_data->last_three_finger_swipe_ms = now;
     }
 
     if (rel_x < 0) {
@@ -1435,6 +1447,7 @@ static int tps43_init(const struct device *dev) {
         .zoom = DT_INST_PROP(inst, zoom),                                                            \
         .swipes = DT_INST_PROP(inst, swipes),                                                        \
         .three_finger_swipe = DT_INST_PROP(inst, three_finger_swipe),                                \
+        .three_finger_swipe_throttle_ms = DT_INST_PROP_OR(inst, three_finger_swipe_throttle_ms, 300),\
         .invert_x = DT_INST_PROP(inst, invert_x),                                                    \
         .invert_y = DT_INST_PROP(inst, invert_y),                                                    \
         .switch_xy = DT_INST_PROP(inst, switch_xy),                                                  \

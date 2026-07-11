@@ -137,6 +137,17 @@ properties:
       Independent of `swipes`, so a three-finger swipe can be enabled without also enabling
       single-finger swipe.
 
+  three-finger-swipe-throttle-ms:
+    type: int
+    required: false
+    default: 300
+    description: >
+      Minimum time in milliseconds between consecutive three-finger swipe actuations.
+      Unlike the single-finger swipe (a single hardware-gated gesture event), a
+      three-finger swipe is derived from raw movement deltas reported on every touch
+      update while 3 fingers are down, so a single continuous swipe motion can otherwise
+      fire the gesture many times in a row. Set to 0 to disable throttling.
+
   switch-xy:
     type: boolean
     required: false
